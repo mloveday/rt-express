@@ -36,6 +36,10 @@ export const App: React.FC = () => {
       console.log(`received message`, data);
       dispatch({ type: data.type, payload: data.message, })
     }
+    sse.onerror = e => {
+      console.log(`sse connection error, closing connection...`, e);
+      sse.close();
+    }
     return () => {
       console.log(`closing connection`);
       sse.close();
