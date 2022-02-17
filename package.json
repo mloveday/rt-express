@@ -2,12 +2,21 @@
   "name": "rt-express",
   "version": "1.0.0",
   "scripts": {
-    "start": "ts-node src/server.ts"
+    "start": "ts-node src/server.ts",
+    "build": "spack"
   },
   "dependencies": {
     "@types/express": "^4.17.13",
+    "@types/react": "^17.0.39",
+    "@types/react-dom": "^17.0.11",
     "express": "^4.17.3",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
     "ts-node": "^10.5.0",
     "typescript": "^4.5.5"
+  },
+  "devDependencies": {
+    "@swc/cli": "^0.1.55",
+    "@swc/core": "^1.2.141"
   }
 }

@@ -7,6 +7,10 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+app.get('/assets/app.js', (req, res) => {
+  res.sendFile(path.join(__dirname, '../dist/web.js'));
+});
+
 app.get('/api/hello', (req, res) => {
   res.json({message: 'hey you'});
 });
