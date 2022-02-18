@@ -19,10 +19,19 @@ const setConnectionRoom = (connectionId: string, roomId: string) => redis.HSET(g
 const getConnection = (connectionId: string) => redis.HGETALL(getConnectionKey(connectionId));
 const publishConnectionChange = async (connectionId: string) => redis.PUBLISH(getConnectionKey(connectionId), JSON.stringify(await getConnection(connectionId)));
 
+const VIEW_ROOM_ONLY = -2;
+const NO_ESTIMATE = -1;
 const getRoomKey = (roomId: string) => `room:${roomId}`;
-const addEstimate = (roomId: string, name: string, estimate: number) => redis.HSET(getRoomKey(roomId), name, estimate);
-const resetRoom = (roomId: string) => redis.DEL(getRoomKey(roomId));
+const viewRoom = (roomId: string, name: string) => redis.HSET(getRoomKey(roomId), name, VIEW_ROOM_ONLY);
+const joinRoom = (roomId: string, name: string) => redis.HSET(getRoomKey(roomId), name, NO_ESTIMATE);
+const makeEstimate = (roomId: string, name: string, estimate: number) => redis.HSET(getRoomKey(roomId), name, estimate);
+const resetRoom = async (roomId: string) => {
+    const names = Object.keys(await getEstimates(roomId));
+    await Promise.all(names.map((name) => redis.HSET(getRoomKey(roomId), name, -1)));
+}
+const deleteRoom = (roomId: string) => redis.DEL(getRoomKey(roomId));
 const getEstimates = (roomId: string) => redis.HGETALL(getRoomKey(roomId));
+const publishToRoom = async (roomId: string) => redis.PUBLISH(getRoomKey(roomId), JSON.stringify(await getEstimates(roomId)));
 
 const sendMessage = (res: Response, type: string, message: any) => res.write(`data: ${JSON.stringify({
     type,
@@ -56,6 +65,7 @@ app.get('/api/rt', async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders(); // flush the headers to establish SSE with client
 
+    await ensureConnected(redis);
     const connectionSubscriber = redis.duplicate();
     await ensureConnected(connectionSubscriber);
     const roomsSubscriber = redis.duplicate();
@@ -71,7 +81,7 @@ app.get('/api/rt', async (req, res) => {
     let roomId;
 
     console.log(`[connectionSubscriber]: ${connectionId} subscribing to connection`);
-    connectionSubscriber.subscribe(getConnectionKey(connectionId), (message) => {
+    await connectionSubscriber.subscribe(getConnectionKey(connectionId), (message) => {
         console.log(`[connectionSubscriber]: ${connectionId} received ${message}`);
         const subscribeToRoom = async (id: string) => {
             console.log(`[roomSubscriber]: ${connectionId} subscribed to ${id}`);
@@ -85,10 +95,12 @@ app.get('/api/rt', async (req, res) => {
         const data = JSON.parse(message);
         if (data.roomId !== undefined) subscribeToRoom(data.roomId);
         name = data.name;
+        sendMessage(res, 'connection', data);
     });
+    sendMessage(res, 'rooms', await getRooms());
 
     console.log(`[roomsSubscriber]: ${connectionId} subscribing to rooms`);
-    roomsSubscriber.subscribe(KEY_ROOMS, async (message) => {
+    await roomsSubscriber.subscribe(KEY_ROOMS, async (message) => {
         // todo send events on changes to list of rooms
         //  updates list of rooms so one can be selected
         //  unsubscribe from room if current room has been deleted, send to client
@@ -108,6 +120,7 @@ app.get('/api/rt', async (req, res) => {
 app.post('/api/create-room', async (req, res) => {
     const connectionId = req.body.connectionId;
     const roomId = req.body.roomId;
+    console.log(`creating ${roomId} for ${connectionId}`);
     await ensureConnected(redis);
     await createRoom(roomId);
     await publishRoomChange();
@@ -119,6 +132,7 @@ app.post('/api/create-room', async (req, res) => {
 app.post('/api/join-room', async (req, res) => {
     const connectionId = req.body.connectionId;
     const roomId = req.body.roomId;
+    console.log(`connecting ${connectionId} to ${roomId}`);
     await ensureConnected(redis);
     await setConnectionRoom(connectionId, roomId);
     await publishConnectionChange(connectionId);
@@ -127,9 +141,10 @@ app.post('/api/join-room', async (req, res) => {
 
 app.post('/api/name-myself', async (req, res) => {
     const connectionId = req.body.connectionId;
-    const roomId = req.body.name;
+    const name = req.body.name;
+    console.log(`naming ${connectionId} to ${name}`);
     await ensureConnected(redis);
-    await setConnectionRoom(connectionId, roomId);
+    await setConnectionName(connectionId, name);
     await publishConnectionChange(connectionId);
     res.end();
 });
