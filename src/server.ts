@@ -1,26 +1,12 @@
 import express from 'express';
 import * as path from 'path';
-import {createClient} from "redis";
+import {createClient, RedisClientType} from "redis";
+import {Response} from "express";
+import {v4 as uuid} from 'uuid';
 
 const redis = createClient({
-  url: 'redis://127.0.0.1:6379'
+    url: 'redis://127.0.0.1:6379'
 });
-
-// todo generate room in redis
-// todo on connect -> store connection in redis, link to room, store name against connection, post to existing connections in room, send current state of room
-// todo on post -> store number against room / name combo, send to existing connections in room
-
-// just getting ideas, not used for anything
-type Connection = {
-  id: string; // some uuid
-  name: string; // person's name
-  room: string; // room id
-  tickets: {
-    id: string; // SUBE-XXX
-    name: string;
-    estimate: string;
-  }[];
-};
 
 const KEY_ROOMS = 'rooms';
 const createRoom = (roomId: string) => redis.SADD(KEY_ROOMS, roomId);
@@ -38,92 +24,116 @@ const addEstimate = (roomId: string, name: string, estimate: number) => redis.HS
 const resetRoom = (roomId: string) => redis.DEL(getRoomKey(roomId));
 const getEstimates = (roomId: string) => redis.HGETALL(getRoomKey(roomId));
 
+const sendMessage = (res: Response, type: string, message: any) => res.write(`data: ${JSON.stringify({
+    type,
+    message
+})}\n\n`);
+
+const ensureConnected = async (client: RedisClientType<any, any>) => {
+    try {
+        await client.connect();
+    } catch (e) {
+        if (e instanceof Error && e.message === 'Socket already opened') return;
+        console.log('Failed to connect to Redis', e);
+    }
+}
+
 const app = express();
+app.use(express.json());
 
 app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+    res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.get('/assets/app.js', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/app.js'));
+    res.sendFile(path.join(__dirname, '../dist/app.js'));
 });
 
 app.get('/api/rt', async (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders(); // flush the headers to establish SSE with client
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders(); // flush the headers to establish SSE with client
 
-  const connectionSubscriber = redis.duplicate();
-  const roomsSubscriber = redis.duplicate();
-  const roomSubscriber = redis.duplicate();
+    const connectionSubscriber = redis.duplicate();
+    await ensureConnected(connectionSubscriber);
+    const roomsSubscriber = redis.duplicate();
+    await ensureConnected(roomsSubscriber);
+    const roomSubscriber = redis.duplicate();
+    await ensureConnected(roomSubscriber);
 
-  const connectionId = 'some-random-string'; // todo use uuid
-  // to be updated when changes to name & roomId are posted to connectionId channel
-  let name;
-  let roomId;
+    const connectionId = uuid();
+    sendMessage(res, 'connection', { connectionId });
 
-  await connectionSubscriber.subscribe(getConnectionKey(connectionId), (message) => {
-    // todo update name & roomId variables, subscribe to room if updated
-    //  message is JSON-stringified version of HGETALL result for given connection
-    //  if room is now specified, subscribe to room & **** send current state down the wire ****
-    const subscribeToRoom = async (id: string) => {
-      await roomSubscriber.unsubscribe(getRoomKey(id));
-      await roomSubscriber.subscribe(getRoomKey(id), (message) => {
-        // todo send events on changes to the channel
-      });
-      roomId = id; // update local state
-    };
-    const data = JSON.parse(message);
-    if (data.roomId !== undefined) subscribeToRoom(data.roomId);
-    name = data.name;
-  });
+    // to be updated when changes to name & roomId are posted to connectionId channel
+    let name;
+    let roomId;
 
-  await roomsSubscriber.subscribe(KEY_ROOMS, (message) => {
-    // todo send events on changes to list of rooms
-    //  updates list of rooms so one can be selected
-    //  unsubscribe from room if current room has been deleted, send to client
-  });
+    console.log(`[connectionSubscriber]: ${connectionId} subscribing to connection`);
+    connectionSubscriber.subscribe(getConnectionKey(connectionId), (message) => {
+        console.log(`[connectionSubscriber]: ${connectionId} received ${message}`);
+        const subscribeToRoom = async (id: string) => {
+            console.log(`[roomSubscriber]: ${connectionId} subscribed to ${id}`);
+            // await roomSubscriber.unsubscribe(getRoomKey(roomId));
+            await roomSubscriber.subscribe(getRoomKey(id), async (message) => {
+                console.log(`[roomSubscriber]: ${connectionId} received update message`, message);
+                sendMessage(res, 'room', JSON.parse(message));
+            });
+            roomId = id; // update local state
+        };
+        const data = JSON.parse(message);
+        if (data.roomId !== undefined) subscribeToRoom(data.roomId);
+        name = data.name;
+    });
 
-  // todo remove this nonsense
-  const INITIAL_VALUE = 10;
-  res.write(`data: ${JSON.stringify({type: 'init', message: INITIAL_VALUE})}\n\n`);
-  let counter = INITIAL_VALUE;
-  const interval = setInterval(() => {
-    counter++;
-    res.write(`data: ${JSON.stringify({type: 'update', message: counter})}\n\n`);
-  }, 2000);
+    console.log(`[roomsSubscriber]: ${connectionId} subscribing to rooms`);
+    roomsSubscriber.subscribe(KEY_ROOMS, async (message) => {
+        // todo send events on changes to list of rooms
+        //  updates list of rooms so one can be selected
+        //  unsubscribe from room if current room has been deleted, send to client
+        console.log(`[roomSubscriber]: received rooms update message`, message);
+        sendMessage(res, 'rooms', JSON.parse(message));
+    });
 
-  res.on('close', () => {
-    console.log('client disconnected');
-    clearInterval(interval);
-    res.end();
-  });
+    res.on('close', () => {
+        console.log('client disconnected');
+        connectionSubscriber.unsubscribe();
+        roomsSubscriber.unsubscribe();
+        roomSubscriber.unsubscribe();
+        res.end();
+    });
 });
 
 app.post('/api/create-room', async (req, res) => {
-  const connectionId = req.body.connectionId;
-  const roomId = req.body.roomId;
-  await setConnectionRoom(connectionId, roomId);
-  await publishConnectionChange(connectionId);
-  await publishRoomChange();
+    const connectionId = req.body.connectionId;
+    const roomId = req.body.roomId;
+    await ensureConnected(redis);
+    await createRoom(roomId);
+    await publishRoomChange();
+    await setConnectionRoom(connectionId, roomId);
+    await publishConnectionChange(connectionId);
+    res.end();
 });
 
 app.post('/api/join-room', async (req, res) => {
-  const connectionId = req.body.connectionId;
-  const roomId = req.body.roomId;
-  await setConnectionRoom(connectionId, roomId);
-  await publishConnectionChange(connectionId);
+    const connectionId = req.body.connectionId;
+    const roomId = req.body.roomId;
+    await ensureConnected(redis);
+    await setConnectionRoom(connectionId, roomId);
+    await publishConnectionChange(connectionId);
+    res.end();
 });
 
 app.post('/api/name-myself', async (req, res) => {
-  const connectionId = req.body.connectionId;
-  const roomId = req.body.name;
-  await setConnectionRoom(connectionId, roomId);
-  await publishConnectionChange(connectionId);
+    const connectionId = req.body.connectionId;
+    const roomId = req.body.name;
+    await ensureConnected(redis);
+    await setConnectionRoom(connectionId, roomId);
+    await publishConnectionChange(connectionId);
+    res.end();
 });
 
 app.listen(3000, () => {
-  console.log('Server running at http://localhost:3000');
+    console.log('Server running at http://localhost:3000');
 });

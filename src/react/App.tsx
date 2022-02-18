@@ -49,7 +49,6 @@ export const App: React.FC = () => {
   return (
     <div>
       <h1>Hello world!</h1>
-      <p>Counter value is currently {state.data ?? '[not initialised]'}</p>
     </div>
   );
 }
