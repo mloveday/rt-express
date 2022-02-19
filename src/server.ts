@@ -14,7 +14,18 @@ const getRooms = () => redis.SMEMBERS(KEY_ROOMS);
 const publishRoomChange = async () => redis.PUBLISH(KEY_ROOMS, JSON.stringify(await getRooms()));
 
 const getConnectionKey = (connectionId: string) => `connection:${connectionId}`;
-const setConnectionName = (connectionId: string, name: string) => redis.HSET(getConnectionKey(connectionId), 'name', name);
+const setConnectionName = async (connectionId: string, name: string) => {
+  const connection = await getConnection(connectionId);
+
+  // update name in current room
+  const roomKey = getRoomKey(connection.roomId);
+  await redis.HSET(roomKey, name, (await getEstimates(connection.roomId))[connection.name] ?? NO_ESTIMATE)
+  await redis.HDEL(roomKey, connection.name);
+  await publishToRoom(connection.roomId);
+
+  // update connection
+  return redis.HSET(getConnectionKey(connectionId), 'name', name);
+};
 const setConnectionRoom = async (connectionId: string, roomId: string) => {
   console.log(`[setConnectionRoom]: adding ${connectionId} to ${roomId}`)
   const connection = await getConnection(connectionId);
