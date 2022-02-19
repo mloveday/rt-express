@@ -1,4 +1,4 @@
-import React, {useEffect, useReducer, useState} from 'react';
+import React, { useEffect, useReducer, useState } from 'react';
 
 type State = {
   status: 'empty' | 'done';
@@ -25,9 +25,9 @@ const reducer = (state: State, action: Action): State => {
         room: action.payload.roomId ?? state.room
       }
     case 'rooms':
-      return {...state, rooms: action.payload}
+      return { ...state, rooms: action.payload }
     case 'room':
-      return {...state, data: action.payload }
+      return { ...state, data: action.payload }
     default:
       return state;
   }
@@ -94,19 +94,32 @@ export const App: React.FC = () => {
     <div className='flex flex-col gap-2'>
       <h1 className='text-xl font-bold'>Hello world!</h1>
 
-      <div className={`font-bold ${state.connectionId !== undefined ? 'text-green-600' : 'text-red-600'}`}>{state.connectionId !== undefined ? 'connected' : 'not connected'}</div>
+      <div
+        className={`font-bold ${state.connectionId !== undefined ? 'text-green-600' : 'text-red-600'}`}>{state.connectionId !== undefined ? 'connected' : 'not connected'}</div>
 
       <div className='border rounded p-2'>
         <label className='flex items-center gap-2'>
           <span>Name</span>
-          <input type="text" className='border rounded p-2' value={name} onChange={(e) => setName(e.target.value)} />
+          <input type="text" className='border rounded p-2' value={name} onChange={(e) => setName(e.target.value)}/>
           <button className='border p-2' onClick={() => saveName(name)}>Save</button>
         </label>
         {state.name !== undefined && <div className=''>{state.name}</div>}
       </div>
 
+      {state.data !== undefined && (
+        <div className='flex flex-col gap-2'>
+          <h2>Current room: {state.room}</h2>
+          <div className='flex gap-4'>
+            {Object.entries(state.data).map(([name, estimate]) => <div className='border rounded p-2 flex flex-col gap-2'>
+              <div className='flex justify-center'>{name}</div>
+              <div className='flex justify-center'>{estimate === '-1' ? '🕑' : (estimate === '-2' ? '👀' : estimate)}</div>
+            </div>)}
+          </div>
+        </div>
+      )}
+
       {state.rooms !== undefined && <div className='border rounded p-2 flex flex-col gap-2'>
-        <h2 className='font-bold'>Name</h2>
+        <h2 className='font-bold'>Rooms</h2>
         {state.rooms.map((r) => <div key={r} className='flex gap-2 items-center border rounded p-2'>
           <span className={`${state.room === r ? 'font-bold' : ''}`}>{r}</span>
           <button className='border p-2' onClick={() => joinRoom(r)}>Join {r}</button>
@@ -114,7 +127,7 @@ export const App: React.FC = () => {
         <div className='border rounded p-2'>
           <label className='flex items-center gap-2'>
             <span>New room</span>
-            <input type="text" className='border rounded p-2' value={room} onChange={(e) => setRoom(e.target.value)} />
+            <input type="text" className='border rounded p-2' value={room} onChange={(e) => setRoom(e.target.value)}/>
           </label>
           <button className='border p-2' onClick={() => createRoom(room)}>Create {room}</button>
         </div>

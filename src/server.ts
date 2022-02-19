@@ -17,8 +17,16 @@ const getConnectionKey = (connectionId: string) => `connection:${connectionId}`;
 const setConnectionName = (connectionId: string, name: string) => redis.HSET(getConnectionKey(connectionId), 'name', name);
 const setConnectionRoom = async (connectionId: string, roomId: string) => {
   console.log(`[setConnectionRoom]: adding ${connectionId} to ${roomId}`)
+  const connection = await getConnection(connectionId);
+  // update current connection
   await redis.HSET(getConnectionKey(connectionId), 'roomId', roomId);
-  await getConnection(connectionId).then(async conn => await joinRoom(roomId, conn.name));
+  await publishConnectionChange(connectionId);
+  // leave old room
+  await leaveRoom(connection.roomId, connection.name);
+  await publishToRoom(connection.roomId);
+  // join new room
+  await joinRoom(roomId, connection.name);
+  await publishToRoom(roomId);
 };
 const getConnection = async (connectionId: string): Promise<Record<string, string>> => ({
   ...(await redis.HGETALL(getConnectionKey(connectionId))),
@@ -30,6 +38,7 @@ const VIEW_ROOM_ONLY = -2;
 const NO_ESTIMATE = -1;
 const getRoomKey = (roomId: string) => `room:${roomId}`;
 const viewRoom = (roomId: string, name: string) => redis.HSET(getRoomKey(roomId), name, VIEW_ROOM_ONLY);
+const leaveRoom = (roomId: string, name: string) => redis.HDEL(getRoomKey(roomId), name);
 const joinRoom = (roomId: string, name: string) => redis.HSET(getRoomKey(roomId), name, NO_ESTIMATE);
 const makeEstimate = (roomId: string, name: string, estimate: number) => redis.HSET(getRoomKey(roomId), name, estimate);
 const resetRoom = async (roomId: string) => {
@@ -97,6 +106,7 @@ app.get('/api/rt', async (req, res) => {
       console.log(`[roomSubscriber]: ${connectionId} received update message`, message);
       sendMessage(res, 'room', JSON.parse(message));
     });
+    await publishToRoom(id);
     roomId = id; // update local state
   };
 
@@ -128,8 +138,9 @@ app.get('/api/rt', async (req, res) => {
     await publishToRoom(roomId);
   }
 
-  res.on('close', () => {
+  res.on('close', async () => {
     console.log('client disconnected');
+    if (roomId !== undefined && name !== undefined) await leaveRoom(roomId, name);
     connectionSubscriber.unsubscribe();
     roomsSubscriber.unsubscribe();
     roomSubscriber.unsubscribe();
@@ -155,10 +166,6 @@ app.post('/api/join-room', async (req, res) => {
   console.log(`[/api/join-room]: connecting ${connectionId} to ${roomId}`);
   await ensureConnected(redis);
   await setConnectionRoom(connectionId, roomId);
-  console.log(`[/api/join-room]: publishing connection change for ${connectionId}`);
-  await publishConnectionChange(connectionId);
-  console.log(`[/api/join-room]: publishing room change for ${roomId}`);
-  await publishToRoom(roomId);
   res.end();
 });
 
@@ -168,7 +175,6 @@ app.post('/api/name-myself', async (req, res) => {
   console.log(`naming ${connectionId} to ${name}`);
   await ensureConnected(redis);
   await setConnectionName(connectionId, name);
-  await publishConnectionChange(connectionId);
   res.end();
 });
 
