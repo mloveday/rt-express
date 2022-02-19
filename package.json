@@ -6,9 +6,11 @@
     "build": "esbuild src/react/index.tsx --bundle --outfile=dist/app.js"
   },
   "dependencies": {
+    "@types/cookie-parser": "^1.4.2",
     "@types/express": "^4.17.13",
     "@types/react": "^17.0.39",
     "@types/react-dom": "^17.0.11",
+    "cookie-parser": "^1.4.6",
     "esbuild": "^0.14.22",
     "express": "^4.17.3",
     "react": "^17.0.2",
