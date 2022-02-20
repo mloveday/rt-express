@@ -23,9 +23,9 @@ const reducer = (state: State, action: Action): State => {
     case MessageType.Connection:
       return {
         ...state,
-        connectionId: action.payload.connectionId ?? state.connectionId,
-        name: action.payload.name ?? state.name,
-        room: action.payload.roomId ?? state.room
+        connectionId: action.payload.connectionId,
+        name: action.payload.name,
+        room: action.payload.roomId
       }
     case MessageType.Rooms:
       return { ...state, rooms: action.payload }

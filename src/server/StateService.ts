@@ -42,7 +42,8 @@ export class StateService {
     await this.publishToRoom(connection.roomId);
 
     // update connection
-    return this.#redis.HSET(getConnectionKey(connectionId), 'name', name);
+    await this.#redis.HSET(getConnectionKey(connectionId), 'name', name);
+    await this.publishConnectionChange(connectionId);
   };
 
   public setConnectionRoom = async (connectionId: string, roomId: string, estimate?: Estimate) => {
