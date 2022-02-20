@@ -58,7 +58,7 @@ app.get('/api/connect', async (req, res) => {
   const { state, stateService } = await bootstrapClientAndState(connectionId);
   const subscriptionService = await new SubscriptionService(stateService, new PubService(res), state).connect();
   await subscriptionService.subscribe();
-  if (state.roomId !== undefined) await stateService.joinRoom(state.roomId);
+  if (state.roomId !== undefined) await stateService.viewRoom(state.roomId);
 
   res.on('close', async () => {
     console.log('client disconnected');
@@ -120,7 +120,7 @@ app.delete('/api/room', async (req, res) => {
   const connectionId = req.signedCookies.connectionId;
   const roomId = req.body.roomId;
   console.log(`[DELETE /api/room]: deleting ${roomId}`);
-  const { state, stateService } = await bootstrapClientAndState(connectionId);
+  const { stateService } = await bootstrapClientAndState(connectionId);
   await stateService.deleteRoom(connectionId);
   res.end();
 });

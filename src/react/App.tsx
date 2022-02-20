@@ -1,6 +1,7 @@
 import React, { useEffect, useReducer, useState } from 'react';
 import { MessageType } from '../MessageType';
 import { JoinType } from '../JoinType';
+import { Estimate } from '../server/Estimate';
 
 type State = {
   status: 'empty' | 'done';
@@ -159,17 +160,19 @@ export const App: React.FC = () => {
               className='border rounded p-2 flex flex-col gap-2'>
               <div className='flex justify-center'>{name}</div>
               <div
-                className='flex justify-center'>{estimate === '-1' ? '🕑' : (estimate === '-2' ? '👀' : estimate)}</div>
+                className='flex justify-center'>{estimate === Estimate.None ? '🕑' : (estimate === Estimate.View ? '👀' : estimate)}</div>
             </div>)}
           </div>
           <div className='flex gap-4'>
-            {connectedRoom !== undefined && [['1', '1+'], ['2-', '2', '2+'], ['3-', '3', '3+'], ['5-', '5', '5+'], ['8-', '8']].map((group) =>
-              <div className='flex gap-2 border p-2'>
-                {group.map((estimate) =>
-                  <button key={estimate} className='border p-4 rounded' onClick={() => makeEstimate(connectedRoom, estimate)}>
-                    {estimate}
-                  </button>)}
-              </div>)}
+            {connectedRoom !== undefined && true && connectedName !== undefined && state.data[connectedName] !== Estimate.View
+              && [['1', '1+'], ['2-', '2', '2+'], ['3-', '3', '3+'], ['5-', '5', '5+'], ['8-', '8']].map((group) =>
+                <div className='flex gap-2 border p-2'>
+                  {group.map((estimate) =>
+                    <button key={estimate} className='border p-4 rounded'
+                            onClick={() => makeEstimate(connectedRoom, estimate)}>
+                      {estimate}
+                    </button>)}
+                </div>)}
           </div>
         </div>
       )}
@@ -179,6 +182,8 @@ export const App: React.FC = () => {
         {state.rooms.map((r) => <div key={r} className='flex gap-2 items-center border rounded p-2'>
           <span className={`${state.room === r ? 'font-bold' : ''}`}>{r}</span>
           <button className='border p-2' onClick={() => joinRoom(r)}>Join</button>
+          <button className='border p-2' onClick={() => viewRoom(r)}>View</button>
+          <button className='border p-2' onClick={() => deleteRoom(r)}>Delete</button>
         </div>)}
         <div className='border rounded p-2'>
           <label className='flex items-center gap-2'>

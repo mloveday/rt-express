@@ -102,6 +102,8 @@ export class StateService {
     const names = Object.keys(await this.getRoomEstimates(roomId));
     for (const name in names) await this.leaveRoom(roomId, name);
     await this.#redis.DEL(getRoomKey(roomId));
+    await this.#redis.SREM(KEY_ROOMS, roomId);
+    await this.publishRoomListChange();
   }
 
   public getRoomEstimates = async (roomId: string) => this.#redis.HGETALL(getRoomKey(roomId));
