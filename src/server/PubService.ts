@@ -9,8 +9,11 @@ export class PubService {
     this.#res = res;
   }
 
-  public sendMessage = (type: MessageType, message: any) => this.#res.write(`data: ${JSON.stringify({
-    type,
-    message
-  })}\n\n`);
+  public sendMessage = (type: MessageType, message: any) => {
+    console.log(`[sendMessage]: ${type}: ${JSON.stringify(message)}}`);
+    return this.#res.write(`data: ${JSON.stringify({
+      type,
+      message
+    })}\n\n`);
+  };
 }

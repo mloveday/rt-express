@@ -1,4 +1,4 @@
 export enum Estimate {
-  None = -1,
-  View = -2,
+  None = '-1',
+  View = '-2',
 }

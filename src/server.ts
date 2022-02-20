@@ -8,6 +8,8 @@ import { ConnectionState } from './server/ConnectionState';
 import { SubscriptionService } from './server/SubscriptionService';
 import { PubService } from './server/PubService';
 import { getConnectionKey } from './server/keys';
+import { Estimate } from './server/Estimate';
+import { JoinType } from './JoinType';
 
 const redis = createClient({
   url: 'redis://127.0.0.1:6379'
@@ -43,7 +45,7 @@ app.get('/assets/app.js', (req, res) => {
   res.sendFile(path.join(__dirname, '../dist/app.js'));
 });
 
-app.get('/api/rt', async (req, res) => {
+app.get('/api/connect', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -54,9 +56,9 @@ app.get('/api/rt', async (req, res) => {
   res.flushHeaders(); // flush the headers to establish SSE with client
 
   const { state, stateService } = await bootstrapClientAndState(connectionId);
-  const subscriptionService = await new SubscriptionService(stateService, new PubService(res), state)
-    .connect()
-    .then(service => service.subscribe());
+  const subscriptionService = await new SubscriptionService(stateService, new PubService(res), state).connect();
+  await subscriptionService.subscribe();
+  if (state.roomId !== undefined) await stateService.joinRoom(state.roomId);
 
   res.on('close', async () => {
     console.log('client disconnected');
@@ -66,31 +68,69 @@ app.get('/api/rt', async (req, res) => {
   });
 });
 
-app.post('/api/create-room', async (req, res) => {
-  const connectionId = req.body.connectionId;
+// create room
+app.put('/api/room', async (req, res) => {
+  const connectionId = req.signedCookies.connectionId;
   const roomId = req.body.roomId;
-  console.log(`[/api/create-room]:creating ${roomId} for ${connectionId}`);
-  const { stateService } = await bootstrapClientAndState(connectionId);
+  console.log(`[PUT /api/room]: creating ${roomId} for ${connectionId}`);
+  const { state, stateService } = await bootstrapClientAndState(connectionId);
+  if (!state.isFullConnectionState()) res.end(); // todo return 400
   await stateService.createRoom(roomId);
   await stateService.setConnectionRoom(connectionId, roomId);
   await stateService.publishConnectionChange(connectionId);
   res.end();
 });
 
-app.post('/api/join-room', async (req, res) => {
-  const connectionId = req.body.connectionId;
+// join room
+app.post('/api/room', async (req, res) => {
+  const connectionId = req.signedCookies.connectionId;
   const roomId = req.body.roomId;
-  console.log(`[/api/join-room]: connecting ${connectionId} to ${roomId}`);
-  const { stateService } = await bootstrapClientAndState(connectionId);
-  await stateService.setConnectionRoom(connectionId, roomId);
+  const joinType = req.body.type as JoinType;
+  console.log(`[POST /api/room]: connecting ${connectionId} to ${roomId} (${joinType})`);
+  const { state, stateService } = await bootstrapClientAndState(connectionId);
+  if (!state.isFullConnectionState()) res.end(); // todo return 400
+
+  switch (joinType) {
+    case JoinType.Join:
+      await stateService.setConnectionRoom(connectionId, roomId, Estimate.None);
+      break;
+    case JoinType.View:
+      await stateService.setConnectionRoom(connectionId, roomId, Estimate.View);
+      break;
+    case JoinType.Leave:
+      await stateService.leaveRoom(state.roomId, state.name);
+      break;
+  }
   res.end();
 });
 
-app.post('/api/name-myself', async (req, res) => {
-  const connectionId = req.body.connectionId;
+// make estimate in room
+app.patch('/api/room', async (req, res) => {
+  const connectionId = req.signedCookies.connectionId;
+  const estimate = req.body.estimate;
+  console.log(`[PATCH /api/room]: estimating ${estimate} for ${connectionId}`);
+  const { state, stateService } = await bootstrapClientAndState(connectionId);
+  if (!state.isFullConnectionState()) res.end(); // todo return 400
+  await stateService.makeEstimate(estimate);
+  res.end();
+});
+
+// delete room
+app.delete('/api/room', async (req, res) => {
+  const connectionId = req.signedCookies.connectionId;
+  const roomId = req.body.roomId;
+  console.log(`[DELETE /api/room]: deleting ${roomId}`);
+  const { state, stateService } = await bootstrapClientAndState(connectionId);
+  await stateService.deleteRoom(connectionId);
+  res.end();
+});
+
+// update name
+app.post('/api/connection/name', async (req, res) => {
+  const connectionId = req.signedCookies.connectionId;
   const name = req.body.name;
   console.log(`naming ${connectionId} to ${name}`);
-  const { stateService } = await bootstrapClientAndState(connectionId);
+  const { state, stateService } = await bootstrapClientAndState(connectionId);
   await stateService.setConnectionName(connectionId, name);
   res.end();
 });

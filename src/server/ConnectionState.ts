@@ -1,11 +1,11 @@
 // contains current state
 // todo replace with calls to redis to get this
-export class ConnectionState {
+export class ConnectionState<T = string|undefined> {
   #connectionId: string;
-  #name?: string;
-  #roomId?: string;
+  #name: T;
+  #roomId: T;
 
-  constructor(connectionId: string, name: string, roomId: string) {
+  constructor(connectionId: string, name: T, roomId: T) {
     this.#connectionId = connectionId;
     this.#name = name;
     this.#roomId = roomId;
@@ -23,19 +23,19 @@ export class ConnectionState {
     this.#connectionId = value;
   }
 
-  get name(): string|undefined {
+  get name(): T {
     return this.#name;
   }
 
-  set name(value: string|undefined) {
+  set name(value: T) {
     this.#name = value;
   }
 
-  get roomId(): string|undefined {
+  get roomId(): T {
     return this.#roomId;
   }
 
-  set roomId(value: string|undefined) {
+  set roomId(value: T) {
     this.#roomId = value;
   }
 
@@ -46,4 +46,6 @@ export class ConnectionState {
       roomId: this.roomId,
     };
   }
+
+  isFullConnectionState = (): this is ConnectionState<string> => this.#name !== undefined && this.#roomId !== undefined;
 }

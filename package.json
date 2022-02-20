@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "start": "ts-node src/server.ts",
-    "build": "esbuild src/react/index.tsx --bundle --outfile=dist/app.js"
+    "build": "esbuild src/react/index.tsx --bundle --outfile=dist/app.js --watch"
   },
   "dependencies": {
     "@types/cookie-parser": "^1.4.2",
