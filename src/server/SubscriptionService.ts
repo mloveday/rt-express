@@ -74,9 +74,16 @@ export class SubscriptionService {
     console.log(`[roomsSubscriber]: ${this.#state.connectionId} subscribing to rooms`);
     this.#pubService.sendMessage(MessageType.Rooms, await this.#stateService.getRoomList());
     await this.#roomsSubscriber.subscribe(KEY_ROOMS, async (message) => {
-      // todo unsubscribe from room if current room has been deleted, send to client
-      console.log(`[roomSubscriber]: received rooms update message`, message);
-      this.#pubService.sendMessage(MessageType.Rooms, JSON.parse(message));
+      const rooms = JSON.parse(message);
+      if (rooms.includes(this.#state.roomId)) {
+        console.log(`[roomsSubscriber]: received rooms update message`, message);
+      } else {
+        console.log(`[roomsSubscriber]: room "${this.#state.roomId}" no longer exists, ${this.#state.connectionId} abandoning room`);
+        await this.#stateService.unsetConnectionRoom(this.#state.connectionId);
+        this.#state.roomId = undefined;
+        this.#pubService.sendMessage(MessageType.Connection, this.#state.connection);
+      }
+      this.#pubService.sendMessage(MessageType.Rooms, rooms);
     });
   }
 

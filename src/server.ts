@@ -121,7 +121,7 @@ app.delete('/api/room', async (req, res) => {
   const roomId = req.body.roomId;
   console.log(`[DELETE /api/room]: deleting ${roomId}`);
   const { stateService } = await bootstrapClientAndState(connectionId);
-  await stateService.deleteRoom(connectionId);
+  await stateService.deleteRoom(roomId);
   res.end();
 });
 

@@ -56,6 +56,13 @@ export class StateService {
     await this.joinRoom(roomId, estimate);
   };
 
+  public unsetConnectionRoom = async (connectionId: string) => {
+    const connection = await this.getConnection(connectionId);
+    console.log(`[unsetConnectionRoom]: removing ${connectionId} from ${connection.roomId}`);
+    await this.#redis.HDEL(getConnectionKey(connectionId), 'roomId');
+    await this.publishConnectionChange(connectionId);
+  };
+
   public getConnection = async (connectionId: string): Promise<Record<string, string>> => ({
     ...(await this.#redis.HGETALL(getConnectionKey(connectionId))),
     connectionId,
@@ -99,8 +106,7 @@ export class StateService {
   }
 
   public deleteRoom = async (roomId: string) => {
-    const names = Object.keys(await this.getRoomEstimates(roomId));
-    for (const name in names) await this.leaveRoom(roomId, name);
+    console.log(`[deleteRoom]: deleting "${roomId}"`);
     await this.#redis.DEL(getRoomKey(roomId));
     await this.#redis.SREM(KEY_ROOMS, roomId);
     await this.publishRoomListChange();
