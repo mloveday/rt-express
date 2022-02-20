@@ -78,28 +78,28 @@ export class StateService {
   };
 
   public viewRoom = async (roomId: string) => {
-    if (!this.#state.isFullConnectionState()) throw Error(`'Can't view a room without a name & room`)
+    if (this.#state.name === undefined) throw Error(`'Can't view a room without a name`);
     console.log(`[viewRoom]: ${this.#state.name} views ${roomId}`);
     await this.#redis.HSET(getRoomKey(roomId), this.#state.name, Estimate.View);
     await this.publishToRoom(roomId);
   };
 
   public joinRoom = async (roomId: string, estimate: Estimate = Estimate.None) => {
-    if (!this.#state.isFullConnectionState()) throw Error(`'Can't join a room without a name & room`)
+    if (this.#state.name === undefined) throw Error(`'Can't view a room without a name`);
     console.log(`[joinRoom]: ${this.#state.name} joins ${roomId}`);
     await this.#redis.HSET(getRoomKey(roomId), this.#state.name, estimate);
     await this.publishToRoom(roomId);
   };
 
   public makeEstimate = async (estimate: number) => {
-    if (!this.#state.isFullConnectionState()) throw Error(`'Can't estimate without a name & room`)
+    if (!this.#state.isFullConnectionState()) throw Error(`'Can't estimate without a name & room`);
     console.log(`[makeEstimate]: ${this.#state.name} estimates ${estimate} in ${this.#state.roomId}`);
     await this.#redis.HSET(getRoomKey(this.#state.roomId), this.#state.name, estimate);
     await this.publishToRoom(this.#state.roomId);
   };
 
   public resetRoom = async (roomId: string) => {
-    if (!this.#state.isFullConnectionState()) throw Error(`'Can't reset a room without a name & room`)
+    if (!this.#state.isFullConnectionState()) throw Error(`'Can't reset a room without a name & room`);
     console.log(`[resetRoom]: resetting ${roomId}`);
     const entries = Object.entries(await this.getRoomEstimates(roomId));
     for (const entry in entries) await this.#redis.HSET(getRoomKey(roomId), entry[0], entry[1] === Estimate.View ? Estimate.View : Estimate.None);

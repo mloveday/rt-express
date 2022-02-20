@@ -76,6 +76,7 @@ app.put('/api/room', async (req, res) => {
   const { state, stateService } = await bootstrapClientAndState(connectionId);
   if (!state.isFullConnectionState()) res.end(); // todo return 400
   await stateService.createRoom(roomId);
+  await stateService.viewRoom(roomId);
   await stateService.setConnectionRoom(connectionId, roomId);
   await stateService.publishConnectionChange(connectionId);
   res.end();
