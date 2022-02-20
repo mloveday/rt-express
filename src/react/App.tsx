@@ -1,4 +1,5 @@
 import React, { useEffect, useReducer, useState } from 'react';
+import { MessageType } from '../MessageType';
 
 type State = {
   status: 'empty' | 'done';
@@ -10,23 +11,23 @@ type State = {
 }
 
 type Action = {
-  type: 'init' | 'update' | 'connection' | 'room' | 'rooms';
+  type: MessageType;
   payload: any;
 }
 
 const reducer = (state: State, action: Action): State => {
   console.log(`handling action`, action);
   switch (action.type) {
-    case 'connection':
+    case MessageType.Connection:
       return {
         ...state,
         connectionId: action.payload.connectionId ?? state.connectionId,
         name: action.payload.name ?? state.name,
         room: action.payload.roomId ?? state.room
       }
-    case 'rooms':
+    case MessageType.Rooms:
       return { ...state, rooms: action.payload }
-    case 'room':
+    case MessageType.Room:
       return { ...state, data: action.payload }
     default:
       return state;
