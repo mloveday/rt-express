@@ -6,11 +6,7 @@ import { Deets } from './components/Deets';
 
 export const App: React.FC = () => {
   const state = useAppState();
-
-  const {
-    room: connectedRoom,
-    name: connectedName,
-  } = state;
+  const { room, name } = state;
 
   return (
     <div className='flex flex-col gap-2'>
@@ -20,12 +16,12 @@ export const App: React.FC = () => {
         {state.connectionId !== undefined ? 'connected' : 'not connected'}
       </div>
 
-      <Deets connectedName={connectedName}/>
+      <Deets name={name}/>
 
       {state.data !== undefined &&
-        <Estimates estimates={state.data} connectedRoom={connectedRoom} connectedName={connectedName}/>}
+        <Estimates estimates={state.data} room={room} name={name}/>}
 
-      {state.rooms !== undefined && <Rooms rooms={state.rooms} connectedRoom={connectedRoom}/>}
+      {state.rooms !== undefined && <Rooms rooms={state.rooms} room={room}/>}
     </div>
   );
 }
